@@ -34,6 +34,7 @@ class _MapaPageState extends State<MapaPage> {
 
   GoogleMapController? _mapController;
   StreamSubscription<Position>? _posSub;
+  final Geocoding _geocoding = Geocoding();
 
   final Set<Marker> _marcadores = {};
   Position? _usuario;
@@ -62,7 +63,8 @@ class _MapaPageState extends State<MapaPage> {
     }
     if (perm == LocationPermission.deniedForever) {
       return Future.error(
-          'Permiso denegado permanentemente, actívalo en Ajustes');
+        'Permiso denegado permanentemente, actívalo en Ajustes',
+      );
     }
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
@@ -78,15 +80,16 @@ class _MapaPageState extends State<MapaPage> {
       );
 
       // Stream en vivo; distanceFilter evita actualizaciones redundantes
-      _posSub = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
-        ),
-      ).listen((p) {
-        setState(() => _usuario = p);
-        _calcularDistancia();
-      });
+      _posSub =
+          Geolocator.getPositionStream(
+            locationSettings: const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 10,
+            ),
+          ).listen((p) {
+            setState(() => _usuario = p);
+            _calcularDistancia();
+          });
     } catch (e) {
       setState(() => _error = e.toString());
     }
@@ -98,11 +101,13 @@ class _MapaPageState extends State<MapaPage> {
       _destino = punto;
       _marcadores
         ..clear()
-        ..add(Marker(
-          markerId: const MarkerId('destino'),
-          position: punto,
-          infoWindow: const InfoWindow(title: 'Destino'),
-        ));
+        ..add(
+          Marker(
+            markerId: const MarkerId('destino'),
+            position: punto,
+            infoWindow: const InfoWindow(title: 'Destino'),
+          ),
+        );
     });
     _calcularDistancia();
     await _obtenerDireccion(punto);
@@ -123,8 +128,10 @@ class _MapaPageState extends State<MapaPage> {
   // ---------- Geocodificación inversa ----------
   Future<void> _obtenerDireccion(LatLng punto) async {
     try {
-      final lugares =
-          await placemarkFromCoordinates(punto.latitude, punto.longitude);
+      final lugares = await _geocoding.placemarkFromCoordinates(
+        punto.latitude,
+        punto.longitude,
+      );
       final p = lugares.first;
       final calle = p.street ?? '';
       final colonia = p.subLocality ?? '';
@@ -149,12 +156,24 @@ class _MapaPageState extends State<MapaPage> {
         children: [
           Expanded(
             child: GoogleMap(
-              initialCameraPosition:
-                  const CameraPosition(target: _utxj, zoom: 15.5),
+              initialCameraPosition: const CameraPosition(
+                target: _utxj,
+                zoom: 15.5,
+              ),
               myLocationEnabled: _usuario != null,
               myLocationButtonEnabled: true,
               markers: _marcadores,
-              onMapCreated: (c) => _mapController = c,
+              onMapCreated: (c) {
+                _mapController = c;
+                if (_usuario != null) {
+                  c.animateCamera(
+                    CameraUpdate.newLatLngZoom(
+                      LatLng(_usuario!.latitude, _usuario!.longitude),
+                      16,
+                    ),
+                  );
+                }
+              },
               onTap: _agregarMarcador,
             ),
           ),
@@ -166,14 +185,18 @@ class _MapaPageState extends State<MapaPage> {
               children: [
                 if (_error != null)
                   Text(_error!, style: const TextStyle(color: Colors.red)),
-                Text(_usuario == null
-                    ? 'Obteniendo ubicación...'
-                    : 'Tú: ${_usuario!.latitude.toStringAsFixed(5)}, '
-                        '${_usuario!.longitude.toStringAsFixed(5)}'),
+                Text(
+                  _usuario == null
+                      ? 'Obteniendo ubicación...'
+                      : 'Tú: ${_usuario!.latitude.toStringAsFixed(5)}, '
+                            '${_usuario!.longitude.toStringAsFixed(5)}',
+                ),
                 const SizedBox(height: 4),
-                Text(_metros == null
-                    ? 'Distancia: --'
-                    : 'Distancia: ${_metros!.toStringAsFixed(1)} m'),
+                Text(
+                  _metros == null
+                      ? 'Distancia: --'
+                      : 'Distancia: ${_metros!.toStringAsFixed(1)} m',
+                ),
                 const SizedBox(height: 4),
                 Text('Dirección: $_direccion'),
               ],
