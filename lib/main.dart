@@ -84,7 +84,7 @@ class _MapaPageState extends State<MapaPage> {
           Geolocator.getPositionStream(
             locationSettings: const LocationSettings(
               accuracy: LocationAccuracy.high,
-              distanceFilter: 10,
+              distanceFilter: 5,
             ),
           ).listen((p) {
             setState(() => _usuario = p);
